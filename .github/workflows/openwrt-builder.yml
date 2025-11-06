@@ -1,4 +1,9 @@
-name: Build OpenWrt (Optimized)
+name: Build OpenWrt (Final Optimized)
+
+permissions:
+  contents: write
+  actions: write
+  packages: write
 
 on:
   workflow_dispatch:
@@ -11,6 +16,7 @@ env:
   DIY_P2_SH: diy-part2.sh
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
 
 jobs:
@@ -18,24 +24,22 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout
+    - name: 🧾 Checkout
       uses: actions/checkout@main
 
-    - name: 🔧 Initialize environment
+    - name: 🧹 Clean and prepare environment
       run: |
-        echo "Cleaning up disk space..."
+        echo "Cleaning disk space..."
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo docker image prune --all --force
         sudo apt-get clean
         sudo rm -rf /var/lib/apt/lists/*
-        sudo df -h
-        sudo mkdir -p /workdir && sudo chown $USER:$GROUPS /workdir
-
-        echo "Installing dependencies..."
+        df -h
+        echo "Installing build dependencies..."
         sudo -E apt-get -qq update
         sudo -E apt-get -qq install -y \
-          build-essential ccache curl wget git python3 rsync unzip \
-          libncurses5-dev zlib1g-dev gawk gettext libssl-dev xsltproc
+          build-essential ccache curl wget git python3 rsync unzip gawk gettext \
+          libncurses5-dev zlib1g-dev libssl-dev xsltproc subversion
 
     - name: 📦 Clone source code
       working-directory: /workdir
@@ -47,13 +51,13 @@ jobs:
       run: |
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
 
-    - name: 🔄 Update & Install feeds
+    - name: 🔄 Update and install feeds
       run: |
         cd openwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: 🧩 Prepare packages
+    - name: 📥 Download packages
       run: |
         cd openwrt
         make defconfig
@@ -76,13 +80,24 @@ jobs:
         rm -rf packages
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
 
-    - name: 📤 Upload firmware
+    - name: 📤 Upload firmware as artifact
       uses: actions/upload-artifact@main
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
-    - name: 🧹 Clean up old runs
+    - name: 🏷️ Create GitHub Release
+      uses: softprops/action-gh-release@master
+      if: env.UPLOAD_RELEASE == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.FILE_DATE }}
+        name: OpenWrt${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        body: "Auto-built OpenWrt firmware."
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: 🧹 Delete old workflow runs
       uses: Mattraks/delete-workflow-runs@main
       with:
         retain_days: 0
