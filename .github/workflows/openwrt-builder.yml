@@ -1,4 +1,4 @@
-name: Build OpenWrt (Final Optimized)
+name: Build OpenWrt (Final Stable)
 
 permissions:
   contents: write
@@ -41,11 +41,14 @@ jobs:
           build-essential ccache curl wget git python3 rsync unzip gawk gettext \
           libncurses5-dev zlib1g-dev libssl-dev xsltproc subversion
 
+        # ✅ Create working directory manually
+        mkdir -p $GITHUB_WORKSPACE/openwrt
+        echo "Work directory created at: $GITHUB_WORKSPACE/openwrt"
+
     - name: 📦 Clone source code
-      working-directory: /workdir
       run: |
+        cd $GITHUB_WORKSPACE
         git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: ⚙️ Load custom configuration
       run: |
